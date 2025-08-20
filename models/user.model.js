@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema(
         return this.userType === "user";
       },
     },
-    birthDate: {
+    dob: {
       type: Date,
       required: function () {
         return this.userType === "user";
@@ -118,19 +118,21 @@ const userSchema = new mongoose.Schema(
       reliability: { type: Number, default: 0 },
       fairPlay: { type: Number, default: 0 },
     },
-    posts: [{
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "Post"
-}],
-averageFacilityRatings: {
-  cleanliness: { type: Number, default: 0 },
-  equipmentQuality: { type: Number, default: 0 },
-  staffFriendliness: { type: Number, default: 0 },
-  safety: { type: Number, default: 0 },
-  amenities: { type: Number, default: 0 },
-  accessibility: { type: Number, default: 0 },
-  valueForMoney: { type: Number, default: 0 }
-},
+    posts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Post",
+      },
+    ],
+    averageFacilityRatings: {
+      cleanliness: { type: Number, default: 0 },
+      equipmentQuality: { type: Number, default: 0 },
+      staffFriendliness: { type: Number, default: 0 },
+      safety: { type: Number, default: 0 },
+      amenities: { type: Number, default: 0 },
+      accessibility: { type: Number, default: 0 },
+      valueForMoney: { type: Number, default: 0 },
+    },
     referralCode: {
       type: String,
       unique: true,
@@ -212,7 +214,7 @@ const businessSchema = new mongoose.Schema(
     industry: String,
     website: String,
     description: String,
-    
+
     address: {
       street: String,
       city: String,
