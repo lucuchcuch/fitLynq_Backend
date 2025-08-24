@@ -9,8 +9,6 @@ import {
   sendWelcomeEmail,
 } from "../mailtrap/emails.js";
 import { User, Business } from "../models/user.model.js";
-import { v2 as cloudinary } from "cloudinary";
-import fs from "fs";
 
 export const signup = async (req, res) => {
   try {
@@ -20,16 +18,12 @@ export const signup = async (req, res) => {
       username,
       phone,
       userType,
-      // User fields
       firstName,
       lastName,
       dob,
-      // Business fields
       businessName,
-      businessType,
     } = req.body;
 
-    // Basic validation
     if (!email || !password || !username || !phone || !userType) {
       return res.status(400).json({
         success: false,
@@ -37,12 +31,11 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Additional validation based on user type
-    console.log("dob: ", dob);
     if (userType === "user" && (!firstName || !lastName || !dob)) {
       return res.status(400).json({
         success: false,
-        message: "First name, last name and birth date are required for users",
+        message:
+          "First name, last name and birth of date are required for users",
       });
     }
 
@@ -53,14 +46,12 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Check if email or username already exists
     const existingUser = await User.findOne({
       $or: [{ email }, { username }],
     });
 
     if (existingUser) {
       return res.status(409).json({
-        // Changed from 400 to 409
         success: false,
         message:
           existingUser.email === email
@@ -69,72 +60,54 @@ export const signup = async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcryptjs.hash(password, 12);
     const verificationToken = Math.floor(
       100000 + Math.random() * 900000
     ).toString();
 
-    // Create user
     const userData = {
       email,
       password: hashedPassword,
       username: username.startsWith("@") ? username.slice(1) : username,
-      phone: {
-        countryCode: phone.countryCode,
-        number: phone.number,
-        full: `${phone.countryCode}${phone.number}`,
-      },
+      phone,
       userType,
       isVerified: false,
       verificationToken,
-      verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+      verificationTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
     };
 
-    // Add user-specific fields
     if (userType === "user") {
       userData.firstName = firstName;
       userData.lastName = lastName;
       userData.dob = new Date(dob);
     }
 
-    // Add business-specific fields
     if (userType === "business") {
       userData.businessName = businessName;
-      userData.businessType = businessType;
     }
 
     const user = new User(userData);
     await user.save();
 
-    // If business, create business profile
     if (userType === "business") {
       const business = new Business({
         userId: user._id,
         businessName,
-        businessType,
-        // Add other business fields from req.body as needed
       });
       await business.save();
     }
 
-    // Generate JWT token
-    generateTokenAndSetCookie(res, user._id);
-
-    // Send verification email
     await sendVerificationEmail(user.email, verificationToken, user.firstName);
 
-    // Return response
     res.status(201).json({
       success: true,
       message:
         "Registration successful. Please check your email for verification.",
       user: {
-        id: user._id,
+        _id: user._id,
         email: user.email,
         username: user.username,
         userType: user.userType,
-        isVerified: user.isVerified,
       },
     });
   } catch (error) {
@@ -149,10 +122,11 @@ export const signup = async (req, res) => {
 
 export const verifyEmail = async (req, res) => {
   try {
-    const { code } = req.body;
+    const { email, code } = req.body;
 
     const user = await User.findOneAndUpdate(
       {
+        email,
         verificationToken: code,
         verificationTokenExpiresAt: { $gt: Date.now() },
         isVerified: false,
@@ -174,7 +148,6 @@ export const verifyEmail = async (req, res) => {
       });
     }
 
-    // Send welcome email
     await sendWelcomeEmail(
       user.email,
       user.userType === "business"
@@ -208,10 +181,12 @@ export const login = async (req, res) => {
   try {
     const user = await User.findOne({ email });
     if (!user) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid credentials" });
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
     }
+
     const isPasswordValid = await bcryptjs.compare(password, user.password);
     if (!isPasswordValid) {
       return res
@@ -219,42 +194,52 @@ export const login = async (req, res) => {
         .json({ success: false, message: "Invalid credentials" });
     }
 
-    // Generate token with rememberMe option
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Your account is not verified. Please verify your email before logging in.",
+      });
+    }
+
     const token = generateTokenAndSetCookie(res, user._id, rememberMe);
 
     user.lastLogin = new Date();
     await user.save();
 
-    // Return user data without sensitive information
-    const userData = {
+    let userData = {
       _id: user._id,
       email: user.email,
       username: user.username,
       userType: user.userType,
-      firstName: user.firstName,
-      lastName: user.lastName,
       profilePhoto: user.profilePhoto,
       isVerified: user.isVerified,
-      businessName: user.businessName,
-      businessType: user.businessType,
     };
+
+    if (user.userType === "user") {
+      userData = {
+        ...userData,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      };
+    } else {
+      userData = {
+        ...userData,
+        businessName: user.businessName,
+      };
+    }
 
     res.status(200).json({
       success: true,
       message: "Logged in successfully",
       rememberMe,
       user: userData,
-      token, // Optional: if you want to use token in localStorage as well
+      token,
     });
   } catch (error) {
     console.log("Error in login ", error);
     res.status(400).json({ success: false, message: error.message });
   }
-};
-
-export const logout = async (req, res) => {
-  res.clearCookie("token");
-  res.status(200).json({ success: true, message: "Logged out successfully" });
 };
 
 export const forgotPassword = async (req, res) => {
@@ -268,19 +253,18 @@ export const forgotPassword = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    // Generate reset token
     const resetToken = crypto.randomBytes(20).toString("hex");
-    const resetTokenExpiresAt = Date.now() + 1 * 60 * 60 * 1000; // 1 hour
+    const resetTokenExpiresAt = Date.now() + 1 * 60 * 60 * 1000;
 
     user.resetPasswordToken = resetToken;
     user.resetPasswordExpiresAt = resetTokenExpiresAt;
 
     await user.save();
 
-    // send email
     await sendPasswordResetEmail(
       user.email,
-      `${process.env.CLIENT_URL}/reset-password/${resetToken}`
+      user.firstName,
+      `${process.env.CLIENT_URL}/forgot-password?token=${resetToken}`
     );
 
     res.status(200).json({
@@ -295,7 +279,7 @@ export const forgotPassword = async (req, res) => {
 
 export const resetPassword = async (req, res) => {
   try {
-    const { token } = req.params;
+    const { token } = req.query;
     const { password } = req.body;
 
     const user = await User.findOne({
@@ -309,7 +293,6 @@ export const resetPassword = async (req, res) => {
         .json({ success: false, message: "Invalid or expired reset token" });
     }
 
-    // update password
     const hashedPassword = await bcryptjs.hash(password, 10);
 
     user.password = hashedPassword;
@@ -328,45 +311,14 @@ export const resetPassword = async (req, res) => {
   }
 };
 
-export const checkAuth = async (req, res) => {
+export const resendVerification = async (req, res) => {
   try {
-    const user = await User.findById(req.userId).select(
-      "-password -verificationToken -resetPasswordToken"
-    );
-    if (!user) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User not found" });
-    }
+    const { email, type } = req.body;
 
-    const userData = {
-      _id: user._id,
-      email: user.email,
-      username: user.username,
-      userType: user.userType,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      profilePhoto: user.profilePhoto,
-      isVerified: user.isVerified,
-      businessName: user.businessName,
-      businessType: user.businessType,
-    };
-
-    res.status(200).json({ success: true, user: userData });
-  } catch (error) {
-    console.log("Error in checkAuth ", error);
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const resendverification = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
+    if (!email || !type) {
       return res.status(400).json({
         success: false,
-        message: "Email is required",
+        message: "Email and type are required",
       });
     }
 
@@ -379,155 +331,57 @@ export const resendverification = async (req, res) => {
       });
     }
 
-    if (user.isVerified) {
-      return res.status(400).json({
-        success: false,
-        message: "Email is already verified",
+    if (type === "email") {
+      if (user.isVerified) {
+        return res.status(400).json({
+          success: false,
+          message: "Email is already verified",
+        });
+      }
+
+      const verificationToken = Math.floor(
+        100000 + Math.random() * 900000
+      ).toString();
+      user.verificationToken = verificationToken;
+      user.verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      await user.save();
+
+      console.log("user.firstName: ", user.firstName);
+      await sendVerificationEmail(
+        user.email,
+        verificationToken,
+        user.firstName
+      );
+      return res.status(200).json({
+        success: true,
+        message: "Verification code resent successfully",
       });
     }
 
-    // Generate new verification code
-    const verificationToken = Math.floor(
-      100000 + Math.random() * 900000
-    ).toString();
-    user.verificationToken = verificationToken;
-    user.verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-    await user.save();
+    if (type === "password") {
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpiresAt = Date.now() + 60 * 60 * 1000;
+      await user.save();
 
-    // Resend verification email
-    await sendVerificationEmail(user.email, verificationToken);
+      await sendPasswordResetEmail(user.email, user.firstName, resetToken);
+      return res.status(200).json({
+        success: true,
+        message: "Password reset link sent successfully",
+      });
+    }
 
-    res.status(200).json({
-      success: true,
-      message: "Verification code resent successfully",
+    return res.status(400).json({
+      success: false,
+      message: "Invalid type",
     });
   } catch (error) {
-    console.error("Error in resendverification:", error);
+    console.error("Error in resendVerification:", error);
     res.status(500).json({
       success: false,
       message: "Internal server error",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
-  }
-};
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-export const updateProfile = async (req, res) => {
-  try {
-    const { bio } = req.body;
-    const userId = req.userId;
-    let profilePhoto = null;
-
-    // Upload new profile photo if provided
-    if (req.file) {
-      // Delete old photo if exists
-      const user = await User.findById(userId);
-      if (user.profilePhoto?.public_id) {
-        await cloudinary.uploader.destroy(user.profilePhoto.public_id);
-      }
-
-      // Upload new photo
-      const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "profile_photos",
-        width: 500,
-        height: 500,
-        crop: "fill",
-        gravity: "face",
-      });
-
-      profilePhoto = {
-        public_id: result.public_id,
-        url: result.secure_url,
-      };
-
-      // Delete file from server
-      fs.unlinkSync(req.file.path);
-    }
-
-    // Update user profile
-    const updateData = { bio };
-    if (profilePhoto) {
-      updateData.profilePhoto = profilePhoto;
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-    }).select("-password -verificationToken -resetPasswordToken");
-
-    res.json({
-      message: "Profile updated successfully",
-      user: updatedUser,
-    });
-  } catch (error) {
-    console.error("Error updating profile:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const getProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.userId)
-      .select("-password -verificationToken -resetPasswordToken")
-      .populate("recentActivities")
-      .populate({
-        path: "reviews",
-        populate: {
-          path: "reviewer",
-          select: "username profilePhoto",
-        },
-      });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json(user);
-  } catch (error) {
-    console.error("Error fetching profile:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const getProfileByUsername = async (req, res) => {
-  try {
-    const user = await User.findOne({ username: req.params.username })
-      .select("-password -verificationToken -resetPasswordToken")
-      .populate("recentActivities")
-      .populate({
-        path: "reviews",
-        populate: {
-          path: "reviewer",
-          select: "username profilePhoto",
-        },
-      });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json(user);
-  } catch (error) {
-    console.error("Error fetching profile:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const getCurrentUser = async (req, res) => {
-  try {
-    if (!req.session.userId) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    const user = await User.findById(req.session.userId).select("-password");
-
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
   }
 };
 
