@@ -20,6 +20,7 @@ export const signup = async (req, res) => {
       userType,
       firstName,
       lastName,
+      gender,
       dob,
       businessName,
     } = req.body;
@@ -31,11 +32,11 @@ export const signup = async (req, res) => {
       });
     }
 
-    if (userType === "user" && (!firstName || !lastName || !dob)) {
+    if (userType === "user" && (!firstName || !lastName || !dob || !gender)) {
       return res.status(400).json({
         success: false,
         message:
-          "First name, last name and birth of date are required for users",
+          "First name, last name, gender and date of birth are required for user",
       });
     }
 
@@ -67,6 +68,7 @@ export const signup = async (req, res) => {
 
     const userData = {
       email,
+      gender,
       password: hashedPassword,
       username: username.startsWith("@") ? username.slice(1) : username,
       phone,
@@ -82,10 +84,6 @@ export const signup = async (req, res) => {
       userData.dob = new Date(dob);
     }
 
-    if (userType === "business") {
-      userData.businessName = businessName;
-    }
-
     const user = new User(userData);
     await user.save();
 
@@ -95,6 +93,9 @@ export const signup = async (req, res) => {
         businessName,
       });
       await business.save();
+
+      user.businessId = business._id;
+      await user.save();
     }
 
     await sendVerificationEmail(user.email, verificationToken, user.firstName);
@@ -204,9 +205,6 @@ export const login = async (req, res) => {
 
     const token = generateTokenAndSetCookie(res, user._id, rememberMe);
 
-    user.lastLogin = new Date();
-    await user.save();
-
     let userData = {
       _id: user._id,
       email: user.email,
@@ -214,13 +212,20 @@ export const login = async (req, res) => {
       userType: user.userType,
       profilePhoto: user.profilePhoto,
       isVerified: user.isVerified,
+      userType: user.userType,
+      lastLogin: user.lastLogin || null,
     };
+
+    user.lastLogin = new Date();
+    await user.save();
 
     if (user.userType === "user") {
       userData = {
         ...userData,
         firstName: user.firstName,
         lastName: user.lastName,
+        gender: user.gender,
+        avatar: user.avatar,
       };
     } else {
       userData = {
@@ -237,7 +242,7 @@ export const login = async (req, res) => {
       token,
     });
   } catch (error) {
-    console.log("Error in login ", error);
+    console.error("Error in login ", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -272,7 +277,7 @@ export const forgotPassword = async (req, res) => {
       message: "Password reset link sent to your email",
     });
   } catch (error) {
-    console.log("Error in forgotPassword ", error);
+    console.error("Error in forgotPassword ", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -306,7 +311,7 @@ export const resetPassword = async (req, res) => {
       .status(200)
       .json({ success: true, message: "Password reset successful" });
   } catch (error) {
-    console.log("Error in resetPassword ", error);
+    console.error("Error in resetPassword ", error);
     res.status(400).json({ success: false, message: error.message });
   }
 };
@@ -346,7 +351,6 @@ export const resendVerification = async (req, res) => {
       user.verificationTokenExpiresAt = Date.now() + 24 * 60 * 60 * 1000;
       await user.save();
 
-      console.log("user.firstName: ", user.firstName);
       await sendVerificationEmail(
         user.email,
         verificationToken,
@@ -385,47 +389,25 @@ export const resendVerification = async (req, res) => {
   }
 };
 
-export const completeBusinessRegistration = async (req, res) => {
+export const getCurrentUser = async (req, res) => {
   try {
-    const { userId, address } = req.body;
-
-    // Update user with address
-    const user = await User.findByIdAndUpdate(
-      userId,
-      {
-        $set: {
-          address,
-          registrationComplete: true,
-        },
-      },
-      { new: true }
-    );
-
-    if (!user) {
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    if (!req.userId) {
+      return res.status(401).json({ message: "Not authenticated" });
     }
 
-    // Generate auth token
-    const token = generateTokenAndSetCookie(user._id);
+    const user = await User.findById(req.userId).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-    res.status(200).json({
-      success: true,
-      message: "Registration complete",
-      token,
-      user: {
-        id: user._id,
-        email: user.email,
-        userType: user.userType,
-      },
-    });
+    res.json(user);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to complete registration",
-      error: error.message,
-    });
+    console.error("Error in getCurrentUser:", error);
+    res.status(500).json({ message: "Server error" });
   }
+};
+
+export const logout = async (req, res) => {
+  res.clearCookie("token");
+  res.status(200).json({ success: true, message: "Logged out successfully" });
 };

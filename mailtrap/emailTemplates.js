@@ -483,20 +483,25 @@ export const PASSWORD_RESET_REQUEST_TEMPLATE = `
                     <p style="margin:0 0 16px 0; font-size:16px;">We received a request to reset your password. If you didn't make this request, please ignore this email.</p>
                     <p style="margin:0 0 16px 0; font-size:16px;">To reset your password, click the button below:</p>
                     
-                    <!-- CTA Button -->
-                    <table width="100%" border="0" cellpadding="0" cellspacing="0">
-                      <tr>
-                        <td align="center" style="padding:30px 0;">
-                          <!--[if mso]>
-                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{resetURL}" style="height:44px;v-text-anchor:middle;width:220px;" arcsize="10%" strokecolor="#7C3AED" fillcolor="#7C3AED">
-                            <w:anchorlock/>
-                            <center style="color:#ffffff;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;">Reset Password</center>
-                          </v:roundrect>
-                          <![endif]-->
-                          <a href="{resetURL}" style="background-color:#7C3AED; color:#ffffff; padding:14px 30px; text-decoration:none; border-radius:30px; font-weight:bold; display:inline-block; mso-hide:all; font-size:16px; text-transform:uppercase; letter-spacing:1px;">Reset Password</a>
-                        </td>
-                      </tr>
-                    </table>
+                    <!-- Bulletproof Reset Button -->
+<table border="0" cellpadding="0" cellspacing="0" width="100%" role="presentation">
+  <tr>
+    <td align="center" style="padding:30px 0;">
+      <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+        <tr>
+          <td align="center" bgcolor="#7C3AED" style="border-radius:30px;">
+            <a href="{resetURL}" target="_blank"
+              style="display:inline-block; padding:14px 30px; font-family:Arial, sans-serif;
+              font-size:16px; font-weight:bold; color:#ffffff; text-decoration:none;
+              border-radius:30px; text-transform:uppercase; letter-spacing:1px;">
+              Reset Password
+            </a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
                     
                     <p style="margin:0 0 16px 0; font-size:16px;">This link will expire in 1 hour for security reasons.</p>
                     <p style="margin:16px 0 0 0; font-size:16px;">Best regards,<br>The fitLynq Team</p>
