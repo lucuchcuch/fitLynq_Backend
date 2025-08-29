@@ -98,7 +98,11 @@ export const signup = async (req, res) => {
       await user.save();
     }
 
-    await sendVerificationEmail(user.email, verificationToken, user.firstName);
+    await sendVerificationEmail(
+      user.email,
+      verificationToken,
+      userType === "business" ? businessName : user.firstName
+    );
 
     res.status(201).json({
       success: true,
