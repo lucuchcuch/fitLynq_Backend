@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true, // creates unique index automatically
+      unique: true,
       trim: true,
       lowercase: true,
     },
@@ -17,14 +17,14 @@ const userSchema = new mongoose.Schema(
     username: {
       type: String,
       required: true,
-      unique: true, // creates unique index automatically
+      unique: true,
       trim: true,
       lowercase: true,
     },
+    avatar: String,
     phone: {
-      countryCode: String,
-      number: String,
-      full: String, // combined for searching
+      type: String,
+      required: true,
     },
     userType: {
       type: String,
@@ -43,14 +43,22 @@ const userSchema = new mongoose.Schema(
         return this.userType === "user";
       },
     },
+    gender: {
+      type: String,
+      required: function () {
+        return this.userType === "user";
+      },
+    },
     dob: {
       type: Date,
       required: function () {
         return this.userType === "user";
       },
     },
-    businessName: String,
-    businessType: String,
+    businessId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Business",
+    },
     profilePhoto: {
       public_id: String,
       url: String,
@@ -210,17 +218,20 @@ const businessSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    businessType: String,
     industry: String,
     website: String,
     description: String,
 
     address: {
       street: String,
+      line2: String,
       city: String,
       state: String,
       postalCode: String,
-      country: String,
+      country: {
+        value: String,
+        label: String,
+      },
       coordinates: {
         lat: Number,
         lng: Number,
@@ -228,6 +239,11 @@ const businessSchema = new mongoose.Schema(
     },
     taxId: String,
     registrationNumber: String,
+    status: {
+      type: String,
+      enum: ["pending", "verified", "rejected"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );
