@@ -234,7 +234,7 @@ export const login = async (req, res) => {
     } else {
       userData = {
         ...userData,
-        businessName: user.businessName,
+        businessId: user.businessId,
       };
     }
 
