@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import path from "path";
+import { createServer } from "http";
+import { Server } from "socket.io";
 import { connectDB } from "./db/connectDB.js";
 import authRoutes from "./routes/auth.route.js";
 import profileRouter from "./routes/profile.routes.js";
@@ -15,12 +17,25 @@ import Court from './models/Court.model.js';
 import CourtBooking from './models/courtbooking.model.js';
 import mongoose from "mongoose";
 import Lobby from "./models/lobby.model.js";
-import businessPosts from "./routes/post.routes.js"
+import businessPosts from "./routes/post.routes.js";
+import messageRoutes from "./routes/messages.js"; // New messaging routes
+
 dotenv.config();
 
 const app = express();
+const httpServer = createServer(app);
 const PORT = process.env.PORT || 5000;
 const __dirname = path.resolve();
+
+// Socket.io setup
+const io = new Server(httpServer, {
+  cors: {
+    origin: "http://localhost:5173",
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }
+});
 
 // Middleware
 app.use(cors({ 
@@ -32,15 +47,19 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
+// Make io available to routes
+app.set("io", io);
+
 // Routes
 app.use("/api/auth", authRoutes);
 app.use('/api/profile', profileRouter);
 app.use('/api/search', searchRoutes);
 app.use('/api/reviews', reviewRoutes);
-app.use('/api/posts', businessPosts)
+app.use('/api/posts', businessPosts);
 app.use('/api/statistics', statisticsRoutes);
 app.use('/api/promotions', promotionsRoutes);
 app.use('/api/lobbies', lobbiesRoutes);
+app.use('/api/messages', messageRoutes); // New messaging routes
 
 // Production setup
 if (process.env.NODE_ENV === "production") {
@@ -337,9 +356,43 @@ app.delete('/api/lobbies/:lobbyId/players/:playerId', async (req, res) => {
   }
 });
 
+// Socket.io connection handling
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+  
+  // Join user to their personal room for notifications
+  socket.on("join-user", (userId) => {
+    socket.join(`user-${userId}`);
+    console.log(`User ${userId} joined room user-${userId}`);
+  });
+  
+  // Join conversation room
+  socket.on("join-conversation", (conversationId) => {
+    socket.join(conversationId);
+    console.log(`Socket ${socket.id} joined conversation ${conversationId}`);
+  });
+  
+  // Leave conversation room
+  socket.on("leave-conversation", (conversationId) => {
+    socket.leave(conversationId);
+    console.log(`Socket ${socket.id} left conversation ${conversationId}`);
+  });
+  
+  // Handle typing indicators
+  socket.on("typing", (data) => {
+    socket.to(data.conversationId).emit("user-typing", {
+      userId: data.userId,
+      isTyping: data.isTyping
+    });
+  });
+  
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
 
 // Start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   connectDB();
   console.log(`Server running on port ${PORT}`);
 });
