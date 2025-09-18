@@ -415,3 +415,35 @@ export const logout = async (req, res) => {
   res.clearCookie("token");
   res.status(200).json({ success: true, message: "Logged out successfully" });
 };
+
+export const deleteAccount = async (req, res) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { userId } = req;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (user.userType === "business" && user.businessId) {
+      await Business.findByIdAndDelete(user.businessId);
+    }
+
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({
+      success: true,
+      message: "Account deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error in deleteAccount: ", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
