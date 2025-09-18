@@ -9,6 +9,7 @@ import {
   logout,
   getCurrentUser,
   deleteAccount,
+  deactivateAccount,
 } from "../controllers/auth.controller.js";
 import { verifyToken } from "../middleware/verifyToken.js";
 
@@ -23,5 +24,6 @@ router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.get("/me", verifyToken, getCurrentUser);
 router.post("/delete-account", verifyToken, deleteAccount);
+router.post("/deactivate-account", verifyToken, deactivateAccount);
 
 export default router;

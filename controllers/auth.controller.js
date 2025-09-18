@@ -221,6 +221,7 @@ export const login = async (req, res) => {
     };
 
     user.lastLogin = new Date();
+    user.isActive = true;
     await user.save();
 
     if (user.userType === "user") {
@@ -444,6 +445,41 @@ export const deleteAccount = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in deleteAccount: ", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const deactivateAccount = async (req, res) => {
+  try {
+    if (!req.userId) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { userId } = req;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (!user.isActive) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Account already deactivated" });
+    }
+
+    user.isActive = false;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Account deactivated successfully",
+    });
+  } catch (error) {
+    console.error("Error in deactivateAccount:", error);
     res.status(500).json({ success: false, message: "Internal server error" });
   }
 };
