@@ -23,7 +23,7 @@ router.post("/resend-verification", resendVerification);
 router.post("/verify-email", verifyEmail);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
-router.post("/update-password", updatePassword);
+router.post("/update-password", verifyToken, updatePassword);
 router.get("/me", verifyToken, getCurrentUser);
 router.post("/delete-account", verifyToken, deleteAccount);
 router.post("/deactivate-account", verifyToken, deactivateAccount);
