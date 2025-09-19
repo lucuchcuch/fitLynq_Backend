@@ -321,6 +321,51 @@ export const resetPassword = async (req, res) => {
   }
 };
 
+export const updatePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing required fields" });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    const isMatch = await bcryptjs.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Current password is incorrect" });
+    }
+
+    const isSameAsOld = await bcryptjs.compare(newPassword, user.password);
+    if (isSameAsOld) {
+      return res.status(400).json({
+        success: false,
+        message: "New password cannot be the same as the current password",
+      });
+    }
+
+    const hashedPassword = await bcryptjs.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    res
+      .status(200)
+      .json({ success: true, message: "Password updated successfully" });
+  } catch (error) {
+    console.error("Error in updatePassword:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 export const resendVerification = async (req, res) => {
   try {
     const { email, type } = req.body;
